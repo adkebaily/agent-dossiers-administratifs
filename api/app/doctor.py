@@ -31,12 +31,12 @@ def main() -> int:
     elif key != key.strip() or key.startswith(('"', "'")):
         errors += 1
         bad("ANTHROPIC_API_KEY contient des espaces ou des guillemets", "réécrivez la ligne sans espace ni guillemet")
-    elif not key.startswith("sk-ant-api"):
+    elif not key.startswith("sk-ant-"):
         errors += 1
-        bad(f"ANTHROPIC_API_KEY ne commence pas par sk-ant-api (début : {key[:10]}…)",
+        bad(f"ANTHROPIC_API_KEY ne ressemble pas à une clé Anthropic (début : {key[:7]}…)",
             "créez une clé sur console.anthropic.com > API Keys")
     else:
-        ok(f"ANTHROPIC_API_KEY chargée (début : {key[:13]}…, {len(key)} caractères)")
+        ok(f"ANTHROPIC_API_KEY chargée (début : {key[:10]}…, {len(key)} caractères)")
 
     api_key = os.getenv("API_KEY")
     if api_key:
@@ -64,7 +64,7 @@ def main() -> int:
         errors += 1
         bad(f"Réseau : impossible de résoudre api.anthropic.com ({exc})", "vérifiez la connexion du codespace")
 
-    if key.startswith("sk-ant-api"):
+    if key.startswith("sk-ant-"):
         import anthropic
 
         from .config import settings
