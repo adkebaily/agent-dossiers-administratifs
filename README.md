@@ -151,6 +151,7 @@ pytest     # prétraitement (redressement, Sauvola), règles métier, API avec L
 | `MIN_LLM_CONFIDENCE` | `0.80` | En dessous, revue humaine |
 | `MIN_OCR_CONFIDENCE` | `60` | Confiance Tesseract moyenne minimale (0-100) |
 | `DATABASE_URL` | — | PostgreSQL ; stockage en mémoire si absent |
+| `API_KEY` | — | Si défini, toutes les routes (sauf `/health`) exigent l'en-tête `X-API-Key` |
 
 Pour ajouter un type de pièce ou une démarche, il suffit de modifier les fichiers YAML de `config/`. Aucun changement de code n'est nécessaire.
 

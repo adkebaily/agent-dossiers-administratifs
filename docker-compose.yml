@@ -20,6 +20,7 @@ services:
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
+      API_KEY: ${API_KEY:-}
       DATABASE_URL: postgresql://dossiers:${POSTGRES_PASSWORD:-dossiers}@postgres:5432/dossiers
     # Explicit DNS: Docker-in-Docker (e.g. GitHub Codespaces) can fail to resolve external hosts
     dns:

@@ -73,3 +73,16 @@ def test_missing_api_key_gives_readable_error(monkeypatch):
     r = upload(TestClient(app), "D-3")
     assert r.status_code == 500
     assert "api_key" in r.json()["detail"]
+
+
+def test_api_key_required_when_configured(monkeypatch):
+    from api.app import main
+
+    from dataclasses import replace
+
+    monkeypatch.setattr(main, "settings", replace(main.settings, api_key="s3cret"))
+    client = TestClient(app)
+    assert client.get("/health").status_code == 200
+    assert client.get("/dossier-types").status_code == 401
+    assert client.get("/dossier-types", headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.get("/dossier-types", headers={"X-API-Key": "s3cret"}).status_code == 200

@@ -20,6 +20,8 @@ class Settings:
     min_llm_confidence: float = _env_float("MIN_LLM_CONFIDENCE", 0.80)
     min_ocr_confidence: float = _env_float("MIN_OCR_CONFIDENCE", 60.0)
     max_upload_mb: float = _env_float("MAX_UPLOAD_MB", 15)
+    # When set, every endpoint except /health requires the header X-API-Key
+    api_key: str | None = os.getenv("API_KEY") or None
     extra: dict = field(default_factory=dict)
 
 

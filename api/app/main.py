@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import asdict
 from typing import Literal
 
 import anthropic
 import cv2
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from .catalog import dossier_config
@@ -18,7 +20,21 @@ from .pipeline import process_document
 from .preprocessing import load_pages, preprocess
 from .validation import check_dossier
 
-app = FastAPI(title="Agent dossiers administratifs", version="0.1.0")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def require_api_key(request: Request, key: str | None = Depends(_api_key_header)) -> None:
+    if settings.api_key is None or request.url.path in ("/", "/health"):
+        return
+    if key is None or not secrets.compare_digest(key, settings.api_key):
+        raise HTTPException(401, "Clé API manquante ou invalide (en-tête X-API-Key)")
+
+
+app = FastAPI(
+    title="Agent dossiers administratifs",
+    version="0.1.0",
+    dependencies=[Depends(require_api_key)],
+)
 
 
 async def _read_upload(file: UploadFile) -> bytes:
