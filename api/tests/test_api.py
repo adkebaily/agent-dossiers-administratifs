@@ -86,3 +86,10 @@ def test_api_key_required_when_configured(monkeypatch):
     assert client.get("/dossier-types").status_code == 401
     assert client.get("/dossier-types", headers={"X-API-Key": "wrong"}).status_code == 401
     assert client.get("/dossier-types", headers={"X-API-Key": "s3cret"}).status_code == 200
+
+
+def test_preprocess_headers_are_ascii():
+    r = TestClient(app).post("/preprocess", files={"file": ("a.png", png_bytes(), "image/png")})
+    assert r.status_code == 200
+    for value in r.headers.values():
+        value.encode("ascii")

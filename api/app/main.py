@@ -5,6 +5,7 @@ from __future__ import annotations
 import secrets
 from dataclasses import asdict
 from pathlib import Path
+from urllib.parse import quote
 from typing import Literal
 
 import anthropic
@@ -176,5 +177,6 @@ async def preview_preprocessing(file: UploadFile = File(...)) -> Response:
     ok, png = cv2.imencode(".png", result.image)
     return Response(
         png.tobytes(), media_type="image/png",
-        headers={"X-Skew-Angle": f"{result.skew_angle:.2f}", "X-Steps": ",".join(result.steps)},
+        # Header values must stay ASCII: proxies such as GitHub Codespaces reject "°" with a 502
+        headers={"X-Skew-Angle": f"{result.skew_angle:.2f}", "X-Steps": quote(",".join(result.steps))},
     )

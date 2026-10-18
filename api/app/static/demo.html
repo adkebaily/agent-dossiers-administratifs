@@ -202,7 +202,7 @@ $("run").addEventListener("click", async () => {
     const preRes = await fetch("/preprocess", { method: "POST", body: pre, headers: headers() });
     if (!preRes.ok) throw new Error(await errorText(preRes));
     $("imgClean").src = URL.createObjectURL(await preRes.blob());
-    $("cleanCaption").textContent = "Après prétraitement : " + (preRes.headers.get("X-Steps") || "").replaceAll(",", " → ");
+    $("cleanCaption").textContent = "Après prétraitement : " + decodeURIComponent(preRes.headers.get("X-Steps") || "").replaceAll(",", " → ");
     if (file.type.startsWith("image/")) $("imgOriginal").src = URL.createObjectURL(file);
     else $("imgOriginal").removeAttribute("src");
 
