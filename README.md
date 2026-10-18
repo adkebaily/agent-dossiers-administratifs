@@ -105,18 +105,29 @@ Les résultats sont écrits dans `eval/results/report.md` et `metrics.json`, et 
 
 ### Résultats
 
-OCR seul, 24 documents synthétiques dégradés :
+Mesuré sur **40 documents synthétiques dégradés** (4 types : justificatif de domicile, avis d'imposition, RIB, certificat de scolarité). Modèle : `claude-opus-5-5`, effort `low`.
+
+**Extraction de bout en bout**
+
+| Métrique | Résultat |
+|---|---|
+| Précision de classification du type de document | **100 %** |
+| Exactitude des champs (exact match normalisé, 250 champs) | **97,6 %** |
+| F1 micro des champs | **0,976** |
+| Documents envoyés en validation humaine | **10 %** |
+
+La plupart des champs sont à 100 %. Les erreurs se concentrent sur le nom de l'établissement (certificat de scolarité, F1 = 0,80), et sur la ville et les champs du RIB (IBAN, BIC, banque ; F1 = 0,90). Pour un IBAN, la clé de contrôle mod-97 permet d'intercepter une partie de ces erreurs avant qu'elles atteignent un agent.
+
+**OCR : effet du prétraitement** (taux d'erreur caractère, CER, plus bas = mieux)
 
 | Configuration | CER |
 |---|---|
-| Image brute (Tesseract seul) | 0.707 |
-| Redressement seul | 0.709 |
-| Redressement + Sauvola | 0.248 |
-| **Pipeline complet** (NL-means + Sauvola + nettoyage + redressement) | **0.006** |
+| Image brute (Tesseract seul) | 0,625 |
+| Redressement seul | 0,625 |
+| Redressement + Sauvola | 0,483 |
+| **Pipeline complet** (NL-means + Sauvola + nettoyage + redressement) | **0,007** |
 
-Sur ces images, l'erreur vient surtout du bruit et de l'éclairage, pas de la rotation : le redressement seul ne change rien. Le bruit synthétique est volontairement fort (σ jusqu'à 25), ce qui donne beaucoup de poids au débruitage. Ces chiffres doivent être confirmés sur des scans réels.
-
-Extraction de bout en bout : *à compléter après `python eval/evaluate.py --mode full`.*
+Le prétraitement divise le taux d'erreur de l'OCR par environ 90. Sur ces images, l'erreur vient surtout du bruit et de l'éclairage, pas de la rotation : le redressement seul ne change rien, alors que débruitage et binarisation locale font l'essentiel du gain. Le bruit synthétique est volontairement fort (σ jusqu'à 25), ce qui donne beaucoup de poids au débruitage ; ces chiffres doivent être confirmés sur des scans réels.
 
 ### Limites
 
