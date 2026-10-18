@@ -7,7 +7,7 @@ from typing import Literal
 
 import cv2
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 
 from .catalog import dossier_config
@@ -50,6 +50,11 @@ def _dossier_status(dossier_id: str) -> dict:
             for d in docs
         ],
     }
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse("/docs")
 
 
 @app.get("/health")
