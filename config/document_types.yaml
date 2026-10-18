@@ -1,0 +1,49 @@
+# Types de documents reconnus et champs à extraire.
+# `required` : champs obligatoires pour considérer l'extraction complète.
+# `max_age_days` : ancienneté maximale du document (par rapport à `date_field`).
+
+document_types:
+  piece_identite:
+    label: "Pièce d'identité (CNI, passeport, titre de séjour)"
+    required: [nom, prenom, date_naissance, numero_document, date_expiration]
+    optional: [lieu_naissance, nationalite, sexe]
+    expiry_field: date_expiration
+
+  justificatif_domicile:
+    label: "Justificatif de domicile (facture énergie, internet, quittance de loyer)"
+    required: [nom, adresse, code_postal, ville, date_document, emetteur]
+    optional: [prenom, numero_client]
+    date_field: date_document
+    max_age_days: 92
+
+  avis_imposition:
+    label: "Avis d'impôt sur le revenu"
+    required: [nom, numero_fiscal, reference_avis, annee_revenus, revenu_fiscal_reference, nombre_parts]
+    optional: [prenom, adresse, impot_net]
+
+  attestation_caf:
+    label: "Attestation CAF (quotient familial, paiement)"
+    required: [nom, numero_allocataire, date_document]
+    optional: [prenom, quotient_familial, montant]
+    date_field: date_document
+    max_age_days: 92
+
+  bulletin_salaire:
+    label: "Bulletin de salaire"
+    required: [nom, employeur, periode, salaire_net]
+    optional: [prenom, salaire_brut, siret_employeur]
+
+  rib:
+    label: "Relevé d'identité bancaire"
+    required: [titulaire, iban, bic]
+    optional: [banque]
+
+  certificat_scolarite:
+    label: "Certificat de scolarité"
+    required: [nom, etablissement, annee_universitaire, formation]
+    optional: [prenom, numero_etudiant]
+
+  autre:
+    label: "Autre / non reconnu"
+    required: []
+    optional: []

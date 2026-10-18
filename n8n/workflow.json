@@ -1,0 +1,199 @@
+{
+  "name": "Agent dossiers administratifs",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Réception document",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "5d0f6a2e-1c1e-4b8e-9a51-0d6c1f6e0001",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dossier-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "API — prétraitement, OCR, extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/documents",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "={{ Object.keys($binary)[0] }}"
+            },
+            {
+              "name": "dossier_id",
+              "value": "={{ $json.body.dossier_id }}"
+            },
+            {
+              "name": "dossier_type",
+              "value": "={{ $json.body.dossier_type }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Accusé de réception",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [480, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { document_id: $json.document_id, document_type: $json.document_type, statut: $json.needs_review ? 'en_attente_validation' : 'valide', pieces_manquantes: $json.dossier.missing } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Validation humaine nécessaire ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c0000000-0000-4000-8000-000000000001",
+              "leftValue": "={{ $('API — prétraitement, OCR, extraction').item.json.needs_review }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Demande de validation à l'agent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [960, 180],
+      "webhookId": "5d0f6a2e-1c1e-4b8e-9a51-0d6c1f6e0005",
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "sendTo": "agent@example.fr",
+        "subject": "={{ 'Validation requise — dossier ' + $('Réception document').item.json.body.dossier_id }}",
+        "message": "={{ (() => { const r = $('API — prétraitement, OCR, extraction').item.json; return 'Document : ' + r.filename + '\\nType détecté : ' + r.document_type + ' (confiance ' + r.type_confidence + ')\\n\\nMotifs de la revue :\\n- ' + r.review_reasons.join('\\n- ') + '\\n\\nChamps extraits :\\n' + Object.entries(r.fields).map(([k, v]) => k + ' : ' + v.value + ' (' + v.confidence + ')').join('\\n'); })() }}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Valider",
+            "disapproveLabel": "Rejeter"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 48,
+              "resumeUnit": "hours"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Enregistrer la décision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://api:8000/documents/' + $('API — prétraitement, OCR, extraction').item.json.document_id + '/review' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { decision: $json.data.approved ? 'approve' : 'reject', comment: 'Décision via n8n (email)' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "État du dossier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'http://api:8000/dossiers/' + encodeURIComponent($('Réception document').item.json.body.dossier_id) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Notifier l'état du dossier",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1680, 300],
+      "webhookId": "5d0f6a2e-1c1e-4b8e-9a51-0d6c1f6e0008",
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "agent@example.fr",
+        "subject": "={{ 'Dossier ' + $json.dossier_id + ($json.complete ? ' — complet' : ' — incomplet') }}",
+        "emailType": "text",
+        "message": "={{ 'Pièces reçues : ' + $json.present.join(', ') + '\\nPièces manquantes : ' + ($json.missing.length ? $json.missing.join(', ') : 'aucune') + '\\nPoints à vérifier : ' + ($json.issues.length ? '\\n- ' + $json.issues.join('\\n- ') : 'aucun') }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Réception document": {
+      "main": [[{ "node": "API — prétraitement, OCR, extraction", "type": "main", "index": 0 }]]
+    },
+    "API — prétraitement, OCR, extraction": {
+      "main": [[{ "node": "Accusé de réception", "type": "main", "index": 0 }]]
+    },
+    "Accusé de réception": {
+      "main": [[{ "node": "Validation humaine nécessaire ?", "type": "main", "index": 0 }]]
+    },
+    "Validation humaine nécessaire ?": {
+      "main": [
+        [{ "node": "Demande de validation à l'agent", "type": "main", "index": 0 }],
+        [{ "node": "État du dossier", "type": "main", "index": 0 }]
+      ]
+    },
+    "Demande de validation à l'agent": {
+      "main": [[{ "node": "Enregistrer la décision", "type": "main", "index": 0 }]]
+    },
+    "Enregistrer la décision": {
+      "main": [[{ "node": "État du dossier", "type": "main", "index": 0 }]]
+    },
+    "État du dossier": {
+      "main": [[{ "node": "Notifier l'état du dossier", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

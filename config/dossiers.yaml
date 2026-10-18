@@ -1,0 +1,43 @@
+# Listes de pièces attendues par type de démarche.
+# `any_of` : au moins un des types listés doit être présent.
+# Ces listes sont simplifiées et à adapter aux exigences réelles de chaque organisme.
+
+dossiers:
+  caf_aide_logement:
+    label: "CAF — demande d'aide au logement"
+    required:
+      - piece_identite
+      - justificatif_domicile
+      - avis_imposition
+      - rib
+
+  crous_dse:
+    label: "CROUS — dossier social étudiant (bourse)"
+    required:
+      - piece_identite
+      - certificat_scolarite
+      - avis_imposition
+      - rib
+    any_of:
+      - [justificatif_domicile, attestation_caf]
+
+  mairie_inscription_scolaire:
+    label: "Mairie — inscription scolaire"
+    required:
+      - piece_identite
+      - justificatif_domicile
+    any_of:
+      - [attestation_caf, avis_imposition]
+
+  location_logement:
+    label: "Dossier de location"
+    required:
+      - piece_identite
+      - justificatif_domicile
+      - avis_imposition
+    any_of:
+      - [bulletin_salaire, attestation_caf]
+
+# Contrôles transverses appliqués à tout dossier
+cross_checks:
+  name_consistency_threshold: 85   # similarité minimale (rapidfuzz, 0-100) entre les noms des pièces

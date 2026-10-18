@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dossiers
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dossiers}
+      POSTGRES_DB: dossiers
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dossiers"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
+      DATABASE_URL: postgresql://dossiers:${POSTGRES_PASSWORD:-dossiers}@postgres:5432/dossiers
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      N8N_HOST: localhost
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: Europe/Paris
+      N8N_SECURE_COOKIE: "false"
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./n8n:/workflows:ro
+    depends_on:
+      - api
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://dossiers:${POSTGRES_PASSWORD:-dossiers}@postgres:5432/dossiers
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./eval/results:/srv/eval/results:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  n8ndata:
