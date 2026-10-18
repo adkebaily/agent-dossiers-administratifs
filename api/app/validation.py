@@ -115,8 +115,9 @@ def check_dossier(dossier_type: str, documents: list[dict]) -> DossierCheck:
     if names:
         reference = names[0]
         for n in names[1:]:
-            if fuzz.token_set_ratio(reference, n) < threshold:
-                issues.append(f"Nom incohérent entre les pièces : « {reference} » / « {n} »")
+            issue = f"Nom incohérent entre les pièces : « {reference} » / « {n} »"
+            if fuzz.token_set_ratio(reference, n) < threshold and issue not in issues:
+                issues.append(issue)
 
     for d in valid:
         if d.get("status") == "pending_review":
