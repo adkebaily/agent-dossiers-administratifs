@@ -90,7 +90,10 @@ async def upload_document(
     except anthropic.APIStatusError as exc:
         raise HTTPException(502, f"Erreur de l'API Anthropic ({exc.status_code}) : {exc.message}") from exc
     except anthropic.APIConnectionError as exc:
-        raise HTTPException(502, "Impossible de joindre l'API Anthropic (réseau)") from exc
+        cause = exc.__cause__ or exc
+        raise HTTPException(
+            502, f"Impossible de joindre l'API Anthropic : {type(cause).__name__}: {cause}"
+        ) from exc
     except anthropic.AnthropicError as exc:
         # Raised at client creation when no API key is configured
         raise HTTPException(500, f"Configuration Anthropic : {exc}") from exc
