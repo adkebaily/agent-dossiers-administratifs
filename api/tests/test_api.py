@@ -64,3 +64,12 @@ def test_unknown_dossier_type_rejected():
     r = TestClient(app).post("/documents", files={"file": ("a.png", png_bytes(), "image/png")},
                              data={"dossier_id": "x", "dossier_type": "nope"})
     assert r.status_code == 422
+
+
+def test_missing_api_key_gives_readable_error(monkeypatch):
+    def boom(ocr_text):
+        raise __import__("anthropic").AnthropicError("The api_key client option must be set")
+    monkeypatch.setattr(llm, "extract", boom)
+    r = upload(TestClient(app), "D-3")
+    assert r.status_code == 500
+    assert "api_key" in r.json()["detail"]

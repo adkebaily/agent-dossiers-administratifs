@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Literal
 
+import anthropic
 import cv2
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import RedirectResponse, Response
@@ -80,6 +81,19 @@ async def upload_document(
         result = process_document(data, file.filename or "upload")
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except anthropic.AuthenticationError as exc:
+        raise HTTPException(502, "Clé API Anthropic invalide : vérifiez ANTHROPIC_API_KEY dans .env") from exc
+    except anthropic.PermissionDeniedError as exc:
+        raise HTTPException(502, f"Accès refusé par l'API Anthropic : {exc.message}") from exc
+    except anthropic.RateLimitError as exc:
+        raise HTTPException(503, "Limite de requêtes Anthropic atteinte, réessayez dans une minute") from exc
+    except anthropic.APIStatusError as exc:
+        raise HTTPException(502, f"Erreur de l'API Anthropic ({exc.status_code}) : {exc.message}") from exc
+    except anthropic.APIConnectionError as exc:
+        raise HTTPException(502, "Impossible de joindre l'API Anthropic (réseau)") from exc
+    except anthropic.AnthropicError as exc:
+        # Raised at client creation when no API key is configured
+        raise HTTPException(500, f"Configuration Anthropic : {exc}") from exc
 
     store.upsert_dossier(dossier_id, dossier_type)
     doc_id = store.insert_document(
