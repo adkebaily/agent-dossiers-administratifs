@@ -234,7 +234,7 @@
         </div>
         <details class="settings" id="settings">
           <summary>Clé API <span class="key-state" id="keyState">non renseignée</span></summary>
-          <input id="apiKey" type="password" autocomplete="off" placeholder="Valeur de API_KEY (si la protection est activée)">
+          <input id="apiKey" type="password" autocomplete="off" placeholder="Valeur de API_KEY — effacée après chaque analyse">
         </details>
         <button class="btn" id="run" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
@@ -319,15 +319,19 @@ $("theme").addEventListener("click", () => {
 });
 
 /* ---------- API key ---------- */
-$("apiKey").value = store.get("apiKey");
+// The key is never stored: it lives in the field only and is wiped after each analysis
+try { localStorage.removeItem("apiKey"); } catch {}
 function refreshKeyState() {
   $("keyState").textContent = $("apiKey").value.trim() ? "renseignée ✓" : "non renseignée";
 }
 refreshKeyState();
 function headers() {
   const key = $("apiKey").value.trim();
-  store.set("apiKey", key);
   return key ? { "X-API-Key": key } : {};
+}
+function clearKey() {
+  $("apiKey").value = "";
+  refreshKeyState();
 }
 $("apiKey").addEventListener("change", () => { refreshKeyState(); loadDossierTypes(); });
 
@@ -470,8 +474,15 @@ $("run").addEventListener("click", async () => {
   } catch (e) {
     clearTimeout(timer);
     setStep(current, "error");
-    showError("Erreur : " + (e.message || e.name || "inconnue") + " (détails dans le terminal du serveur)");
+    const msg = e.message || e.name || "inconnue";
+    if (msg.startsWith("HTTP 401")) {
+      $("settings").open = true;
+      showError("Clé API requise : collez la valeur d'API_KEY dans « Clé API » (elle est effacée après chaque analyse).");
+    } else {
+      showError("Erreur : " + msg + " (détails dans le terminal du serveur)");
+    }
   } finally {
+    clearKey();
     $("run").disabled = false;
   }
 });
