@@ -133,9 +133,13 @@ function setStatus(text, error = false) {
   $("status").classList.toggle("error", error);
 }
 
+// HTTP/2 proxies (e.g. Codespaces) send an empty statusText, so always show the code and the body
 async function errorText(res) {
-  try { const body = await res.json(); return body.detail ? JSON.stringify(body.detail) : res.statusText; }
-  catch { return res.statusText; }
+  const text = await res.text().catch(() => "");
+  let detail = text;
+  try { const body = JSON.parse(text); if (body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail); } catch {}
+  detail = detail.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+  return `HTTP ${res.status}${detail ? " — " + detail : ""}`;
 }
 
 async function loadDossierTypes() {
@@ -213,7 +217,7 @@ $("run").addEventListener("click", async () => {
     $("results").hidden = false;
     setStatus("");
   } catch (e) {
-    setStatus("Erreur : " + e.message, true);
+    setStatus("Erreur : " + (e.message || e.name || "inconnue") + " (détails dans le terminal du serveur)", true);
   } finally {
     $("run").disabled = false;
   }
