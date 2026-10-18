@@ -87,6 +87,29 @@ Voir le résultat du prétraitement seul (utile pour la démo) :
 curl -X POST http://localhost:8000/preprocess -F "file=@photo.jpg" -o propre.png
 ```
 
+## Lancer sans Docker (GitHub Codespaces ou Linux)
+
+```bash
+sudo apt-get install -y tesseract-ocr tesseract-ocr-fra
+python -m pip install -r api/requirements.txt
+cp .env.example .env                      # renseigner ANTHROPIC_API_KEY (et API_KEY si l'API est exposée)
+set -a; source .env; set +a
+python -m api.app.doctor                  # vérifie clés, Tesseract, réseau et un appel au modèle
+python -m uvicorn api.app.main:app --host 0.0.0.0 --port 8000
+```
+
+Puis ouvrir `/demo`. Sans base PostgreSQL, les résultats sont gardés en mémoire.
+
+### Dépannage
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| `Clé API manquante ou invalide` | `API_KEY` est définie mais pas envoyée | Coller la valeur d'`API_KEY` dans le champ « Clé API » de `/demo` (ou en-tête `X-API-Key`) |
+| `address already in use` | Un serveur tourne déjà sur le port 8000 | `docker compose down; pkill -f uvicorn` puis relancer |
+| `HTTP 502` sans message | La passerelle Codespaces n'atteint pas le serveur | Vérifier `curl localhost:8000/health`, puis relancer le transfert du port 8000 (onglet PORTS) |
+| `Temporary failure in name resolution` dans Docker | DNS du Docker-in-Docker | Déjà corrigé via `dns:` dans `docker-compose.yml`, sinon lancer sans Docker |
+| `rapidfuzz` ne s'installe pas | Version de Python récente | `git pull` (versions minimales au lieu de versions figées) |
+
 ## Évaluation
 
 Il n'y a **aucune donnée personnelle réelle** dans le dépôt. Le jeu de test est synthétique : les documents sont générés avec des identités aléatoires, puis dégradés comme une mauvaise photo (rotation jusqu'à ±8°, dégradé d'éclairage, flou, bruit gaussien, compression JPEG), avec un niveau de dégradation tiré entre 0 et 1.
