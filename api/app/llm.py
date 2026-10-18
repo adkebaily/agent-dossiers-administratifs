@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Literal
 
 import anthropic
@@ -100,7 +101,11 @@ def extract(ocr_text: str) -> Extraction:
         model=settings.llm_model,
         max_tokens=4096,
         system=_system_prompt(types),
-        messages=[{"role": "user", "content": f"<ocr>\n{ocr_text}\n</ocr>"}],
+        # Today's date goes in the user turn (not the system prompt) so the system prompt stays cacheable
+        messages=[{
+            "role": "user",
+            "content": f"Date du jour : {date.today().isoformat()}\n\n<ocr>\n{ocr_text}\n</ocr>",
+        }],
         output_config={
             "effort": settings.llm_effort,
             "format": {"type": "json_schema", "schema": _schema(list(types))},
