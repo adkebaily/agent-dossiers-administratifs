@@ -61,6 +61,7 @@ cp .env.example .env            # renseigner ANTHROPIC_API_KEY
 docker compose up --build
 ```
 
+- **Page de démo** : http://localhost:8000/demo (dépôt d'un document, image avant/après, champs extraits, état du dossier)
 - API : http://localhost:8000/docs
 - n8n : http://localhost:5678 → *Import from file* → `n8n/workflow.json`, puis configurer les identifiants Gmail et remplacer `agent@example.fr`
 - Dashboard : http://localhost:8501

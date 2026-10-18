@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import asdict
+from pathlib import Path
 from typing import Literal
 
 import anthropic
 import cv2
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -24,7 +25,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def require_api_key(request: Request, key: str | None = Depends(_api_key_header)) -> None:
-    if settings.api_key is None or request.url.path in ("/", "/health"):
+    if settings.api_key is None or request.url.path in ("/", "/health", "/demo"):
         return
     if key is None or not secrets.compare_digest(key, settings.api_key):
         raise HTTPException(401, "Clé API manquante ou invalide (en-tête X-API-Key)")
@@ -71,7 +72,13 @@ def _dossier_status(dossier_id: str) -> dict:
 
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    return RedirectResponse("/docs")
+    return RedirectResponse("/demo")
+
+
+@app.get("/demo", include_in_schema=False)
+def demo() -> FileResponse:
+    """Upload page for demos: before/after preprocessing, extracted fields, dossier checklist."""
+    return FileResponse(Path(__file__).parent / "static" / "demo.html")
 
 
 @app.get("/health")
