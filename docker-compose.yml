@@ -21,6 +21,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
       DATABASE_URL: postgresql://dossiers:${POSTGRES_PASSWORD:-dossiers}@postgres:5432/dossiers
+    # Explicit DNS: Docker-in-Docker (e.g. GitHub Codespaces) can fail to resolve external hosts
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "8000:8000"
     depends_on:
@@ -34,6 +38,10 @@ services:
       WEBHOOK_URL: http://localhost:5678/
       GENERIC_TIMEZONE: Europe/Paris
       N8N_SECURE_COOKIE: "false"
+    # Explicit DNS: Docker-in-Docker (e.g. GitHub Codespaces) can fail to resolve external hosts
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "5678:5678"
     volumes:
