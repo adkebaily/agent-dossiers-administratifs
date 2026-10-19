@@ -1,192 +1,61 @@
 # Agent IA de traitement de dossiers administratifs
 
-Un usager ou un agent d'accueil (CAF, CROUS, mairie, préfecture) dépose des pièces scannées ou photographiées. Le système :
+Un usager dépose une pièce justificative (avis d'imposition, justificatif de domicile, RIB…), souvent en photo floue. L'agent **nettoie l'image, la lit, identifie le document, extrait les champs et vérifie si le dossier est complet**. Les cas incertains partent en validation humaine.
 
-1. **nettoie l'image** (débruitage, binarisation de Sauvola, redressement) ;
-2. **lit le document** par OCR (Tesseract, modèle français) ;
-3. **identifie le type de pièce** et **extrait les champs** en JSON structuré (LLM) ;
-4. **contrôle les règles métier** de façon déterministe : pièce expirée, justificatif de plus de 3 mois, clé IBAN, cohérence des noms entre pièces ;
-5. **vérifie la complétude du dossier** par rapport à la liste de pièces de la démarche et liste ce qui manque ;
-6. **envoie les cas incertains en validation humaine** (email avec boutons Valider / Rejeter) ;
-7. affiche dossiers, file de validation et métriques dans un **tableau de bord**.
+![Avant / après prétraitement](docs/avant_apres.png)
 
-> Le LLM extrait, les règles décident. Les contrôles métier sont en Python testable, pas dans un prompt. Un agent peut donc toujours savoir pourquoi un dossier a été bloqué.
+## Résultats
 
-## Architecture
+Mesurés sur 40 documents de test annotés (générés, sans donnée personnelle réelle) :
+
+| | |
+|---|---|
+| Documents correctement identifiés | **100 %** |
+| Champs extraits exacts | **97,6 %** |
+| Documents envoyés en validation humaine | **10 %** |
+| Erreur OCR (CER) sans → avec prétraitement | **0,625 → 0,007** (÷ 90) |
+
+Le gain vient surtout du **débruitage et de la binarisation locale (Sauvola)**, pas du redressement ni du modèle d'IA.
+
+![Résultat d'une analyse](docs/resultats.png)
+
+## Fonctionnement
 
 ```mermaid
 flowchart LR
-    U[Usager / agent<br>upload] -->|POST multipart| W[n8n<br>Webhook]
-    W --> API
-    subgraph API[FastAPI]
-        P[Prétraitement<br>OpenCV] --> O[OCR<br>Tesseract fra]
-        O --> L[LLM<br>classification + extraction JSON]
-        L --> R[Règles métier<br>+ complétude]
-    end
-    API --> DB[(PostgreSQL)]
-    API --> D{Confiance<br>suffisante ?}
-    D -- non --> H[Email<br>Valider / Rejeter]
-    H -->|décision| API
-    D -- oui --> N[Notification<br>état du dossier]
-    H --> N
-    DB --> S[Dashboard<br>Streamlit]
+    A[Pièce scannée] --> B[Prétraitement<br>OpenCV]
+    B --> C[OCR<br>Tesseract]
+    C --> D[Extraction<br>LLM → JSON]
+    D --> E[Règles métier<br>+ complétude]
+    E -->|incertain| F[Validation humaine<br>n8n]
+    E -->|sûr| G[(PostgreSQL)]
 ```
 
-| Composant | Rôle | Dossier |
-|---|---|---|
-| n8n | Orchestration : réception, appel API, validation humaine, notifications | `n8n/workflow.json` |
-| FastAPI | Prétraitement, OCR, appel LLM, règles, persistance | `api/app/` |
-| Config YAML | Types de documents, champs obligatoires, pièces par démarche | `config/` |
-| PostgreSQL | Dossiers, documents, décisions de revue | `db/init.sql` |
-| Streamlit | Suivi des dossiers et métriques | `dashboard/` |
-| Évaluation | Jeu de test synthétique annoté et calcul des scores | `eval/` |
+- **Prétraitement** : débruitage NL-means, binarisation de Sauvola, redressement par profil de projection
+- **Extraction** : le LLM (Claude) renvoie le type de document et les champs en JSON, avec une confiance par champ
+- **Règles en Python** (testables) : pièce expirée, justificatif de plus de 3 mois, clé IBAN, cohérence des noms, pièces manquantes par démarche
 
-## Prétraitement d'image
-
-Une photo de document prise au téléphone pose quatre problèmes : rotation, éclairage non uniforme, bruit et compression JPEG. Le pipeline (`api/app/preprocessing.py`) :
-
-| Étape | Méthode | Pourquoi |
-|---|---|---|
-| Débruitage | Non-local means (`fastNlMeansDenoising`) | Conserve mieux les contours des caractères qu'un filtre gaussien ou médian |
-| Binarisation | **Sauvola** : `T = m · (1 + k · (s/R − 1))`, moyenne et écart-type locaux calculés par box filter | Seuil local robuste aux ombres, là où Otsu (seuil global) noircit la zone sombre |
-| Nettoyage | Suppression des composantes connexes < 12 px | Enlève le bruit « sel » résiduel |
-| Redressement | Recherche de l'angle maximisant la variance du **profil de projection** horizontal (recherche grossière puis fine) | Les lignes de texte alignées donnent des pics nets |
-
-L'ordre compte. Une première version estimait l'angle sur un masque d'Otsu et appliquait CLAHE avant Sauvola. Sur les photos mal éclairées, l'angle trouvé était faux (16° au lieu de 2°) et le fond devenait un bruit dense. Estimer l'angle **après** la binarisation locale a corrigé les deux problèmes. L'ablation ci-dessous mesure l'effet de chaque étape.
-
-## Démarrage rapide
+## Lancer le projet
 
 ```bash
-cp .env.example .env            # renseigner ANTHROPIC_API_KEY
-docker compose up --build
+cp .env.example .env          # renseigner ANTHROPIC_API_KEY
+docker compose up --build     # ou sans Docker : voir docs/DETAILS.md
 ```
 
-- **Page de démo** : http://localhost:8000/demo (dépôt d'un document, image avant/après, champs extraits, état du dossier)
-- API : http://localhost:8000/docs
-- n8n : http://localhost:5678 → *Import from file* → `n8n/workflow.json`, puis configurer les identifiants Gmail et remplacer `agent@example.fr`
-- Dashboard : http://localhost:8501
+Puis ouvrir **http://localhost:8000/demo**.
 
-Envoyer un document :
+Évaluer : `python eval/generate_synthetic.py --n 40` puis `python eval/evaluate.py --mode both`.
 
-```bash
-curl -X POST http://localhost:5678/webhook/dossier-upload \
-  -F "file=@mon_avis.pdf" -F "dossier_id=D-2026-001" -F "dossier_type=caf_aide_logement"
-```
+## Stack
 
-Appeler l'API directement, sans n8n :
+Python · OpenCV · Tesseract · FastAPI · Claude API · n8n · PostgreSQL · Docker
 
-```bash
-curl -X POST http://localhost:8000/documents \
-  -F "file=@rib.jpg" -F "dossier_id=D-2026-001" -F "dossier_type=caf_aide_logement"
-curl http://localhost:8000/dossiers/D-2026-001
-```
+## Limites
 
-Voir le résultat du prétraitement seul (utile pour la démo) :
+Jeu de test synthétique : à confirmer sur de vrais scans anonymisés. Listes de pièces simplifiées. Un usage réel demanderait un modèle hébergé en France et une analyse RGPD.
 
-```bash
-curl -X POST http://localhost:8000/preprocess -F "file=@photo.jpg" -o propre.png
-```
+---
 
-## Lancer sans Docker (GitHub Codespaces ou Linux)
+📄 Détails techniques, configuration et dépannage : [docs/DETAILS.md](docs/DETAILS.md)
 
-```bash
-sudo apt-get install -y tesseract-ocr tesseract-ocr-fra
-python -m pip install -r api/requirements.txt
-cp .env.example .env                      # renseigner ANTHROPIC_API_KEY (et API_KEY si l'API est exposée)
-set -a; source .env; set +a
-python -m api.app.doctor                  # vérifie clés, Tesseract, réseau et un appel au modèle
-python -m uvicorn api.app.main:app --host 0.0.0.0 --port 8000
-```
-
-Puis ouvrir `/demo`. Sans base PostgreSQL, les résultats sont gardés en mémoire.
-
-### Dépannage
-
-| Symptôme | Cause | Solution |
-|---|---|---|
-| `Clé API manquante ou invalide` | `API_KEY` est définie mais pas envoyée | Coller la valeur d'`API_KEY` dans le champ « Clé API » de `/demo` (ou en-tête `X-API-Key`) |
-| `address already in use` | Un serveur tourne déjà sur le port 8000 | `docker compose down; pkill -f uvicorn` puis relancer |
-| `HTTP 502` sans message | La passerelle Codespaces n'atteint pas le serveur | Vérifier `curl localhost:8000/health`, puis relancer le transfert du port 8000 (onglet PORTS) |
-| `Temporary failure in name resolution` dans Docker | DNS du Docker-in-Docker | Déjà corrigé via `dns:` dans `docker-compose.yml`, sinon lancer sans Docker |
-| `rapidfuzz` ne s'installe pas | Version de Python récente | `git pull` (versions minimales au lieu de versions figées) |
-
-## Évaluation
-
-Il n'y a **aucune donnée personnelle réelle** dans le dépôt. Le jeu de test est synthétique : les documents sont générés avec des identités aléatoires, puis dégradés comme une mauvaise photo (rotation jusqu'à ±8°, dégradé d'éclairage, flou, bruit gaussien, compression JPEG), avec un niveau de dégradation tiré entre 0 et 1.
-
-```bash
-pip install -r api/requirements-dev.txt          # + tesseract-ocr et tesseract-ocr-fra
-python eval/generate_synthetic.py --n 60 --out eval/dataset
-
-# Ablation du prétraitement (gratuit, sans LLM) : taux d'erreur caractère (CER)
-python eval/evaluate.py --mode ocr
-
-# Bout en bout : précision de classification, exact match et F1 par champ, taux de revue humaine
-python eval/evaluate.py --mode full
-```
-
-Les résultats sont écrits dans `eval/results/report.md` et `metrics.json`, et affichés dans le dashboard.
-
-### Résultats
-
-Mesuré sur **40 documents synthétiques dégradés** (4 types : justificatif de domicile, avis d'imposition, RIB, certificat de scolarité). Modèle : `claude-opus-5-5`, effort `low`.
-
-**Extraction de bout en bout**
-
-| Métrique | Résultat |
-|---|---|
-| Précision de classification du type de document | **100 %** |
-| Exactitude des champs (exact match normalisé, 250 champs) | **97,6 %** |
-| F1 micro des champs | **0,976** |
-| Documents envoyés en validation humaine | **10 %** |
-
-La plupart des champs sont à 100 %. Les erreurs se concentrent sur le nom de l'établissement (certificat de scolarité, F1 = 0,80), et sur la ville et les champs du RIB (IBAN, BIC, banque ; F1 = 0,90). Pour un IBAN, la clé de contrôle mod-97 permet d'intercepter une partie de ces erreurs avant qu'elles atteignent un agent.
-
-**OCR : effet du prétraitement** (taux d'erreur caractère, CER, plus bas = mieux)
-
-| Configuration | CER |
-|---|---|
-| Image brute (Tesseract seul) | 0,625 |
-| Redressement seul | 0,625 |
-| Redressement + Sauvola | 0,483 |
-| **Pipeline complet** (NL-means + Sauvola + nettoyage + redressement) | **0,007** |
-
-Le prétraitement divise le taux d'erreur de l'OCR par environ 90. Sur ces images, l'erreur vient surtout du bruit et de l'éclairage, pas de la rotation : le redressement seul ne change rien, alors que débruitage et binarisation locale font l'essentiel du gain. Le bruit synthétique est volontairement fort (σ jusqu'à 25), ce qui donne beaucoup de poids au débruitage ; ces chiffres doivent être confirmés sur des scans réels.
-
-### Limites
-
-- Un jeu synthétique est plus propre que des scans réels (pas de tampons, de tableaux ni d'écriture manuscrite). L'étape suivante est un petit jeu réel anonymisé.
-- Les listes de pièces dans `config/dossiers.yaml` sont simplifiées. Elles ne reproduisent pas les exigences officielles de chaque organisme.
-- Un LLM hébergé reçoit le texte des pièces. Pour un déploiement réel, il faudrait un modèle hébergé en France ou en interne, une analyse d'impact RGPD (AIPD) et une durée de conservation définie.
-
-## Tests
-
-```bash
-pytest     # prétraitement (redressement, Sauvola), règles métier, API avec LLM simulé
-```
-
-## Configuration
-
-| Variable | Défaut | Rôle |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | — | Clé API pour l'extraction |
-| `LLM_MODEL` | `claude-opus-5-5` | Modèle utilisé |
-| `LLM_EFFORT` | `low` | Effort de raisonnement (`low` suffit pour de l'extraction) |
-| `MIN_LLM_CONFIDENCE` | `0.80` | En dessous, revue humaine |
-| `MIN_OCR_CONFIDENCE` | `60` | Confiance Tesseract moyenne minimale (0-100) |
-| `DATABASE_URL` | — | PostgreSQL ; stockage en mémoire si absent |
-| `API_KEY` | — | Si défini, toutes les routes (sauf `/health`) exigent l'en-tête `X-API-Key` |
-
-Pour ajouter un type de pièce ou une démarche, il suffit de modifier les fichiers YAML de `config/`. Aucun changement de code n'est nécessaire.
-
-## Pistes d'amélioration
-
-- Déclencheur par email (pièces jointes) en plus du webhook
-- Validation par Telegram ou par un formulaire n8n avec correction des champs
-- Détection et redressement de perspective (contour de la feuille, homographie)
-- OCR par modèle de vision en repli quand la confiance Tesseract est faible
-- Détection de falsification simple (incohérences de police, métadonnées PDF)
-
-## Licence
-
-MIT
+**Chems Eddine Adel Kebaily** · Master 1 Traitement du signal et des images, ULCO · [Portfolio](https://chemseddine-kebaily.netlify.app) · [LinkedIn](https://www.linkedin.com/in/chemseddineadel-keb)
