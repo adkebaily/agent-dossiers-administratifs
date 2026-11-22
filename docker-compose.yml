@@ -27,7 +27,7 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,7 +44,7 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     volumes:
       - n8ndata:/home/node/.n8n
       - ./n8n:/workflows:ro
@@ -58,7 +58,7 @@ services:
     environment:
       DATABASE_URL: postgresql://dossiers:${POSTGRES_PASSWORD:-dossiers}@postgres:5432/dossiers
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     volumes:
       - ./eval/results:/srv/eval/results:ro
     depends_on:
